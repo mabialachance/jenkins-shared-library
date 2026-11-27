@@ -5,6 +5,21 @@ pipeline {
     tools {
         maven 'maven-3.9'
     }
+    stage('Check CI Skip') {
+     steps {
+        script {
+            def commitMessage = sh(
+                script: 'git log -1 --pretty=%B',
+                returnStdout: true
+            ).trim()
+
+            if (commitMessage.contains('[skip ci]')) {
+                currentBuild.result = 'NOT_BUILT'
+                error('Skipping Jenkins-generated commit')
+            }
+         }
+      }
+    }
     stages {
         stage('increment version') {
             steps {
@@ -55,9 +70,16 @@ pipeline {
 
                     sh 'git status'
                     sh 'git branch'
+                   
+                    sh '''
+                    git add Jenkins/pom.xml
 
-                    sh 'git add Jenkins/pom.xml'
-                    sh 'git commit -m "ci: version bump"'
+                    if git diff --cached --quiet; then
+                        echo "No version changes"
+                    else
+                        git commit -m "[skip ci] ci: version bump"
+                    fi
+                    '''
 
                     withCredentials([gitUsernamePassword(
                         credentialsId: 'github-credentials',
